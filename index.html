@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="門診紀錄">
+<title>門診人次紀錄</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #f0f4f8;
+  --card: #ffffff;
+  --text: #1a2535;
+  --sub: #6b7c93;
+  --accent: #2e7d9e;
+  --accent2: #e8704a;
+  --danger: #e05252;
+  --success: #3a9e6a;
+  --radius: 16px;
+  --y22: #b0bec5;
+  --y23: #90a4ae;
+  --y24: #e8c97a;
+  --y25: #8fbc8f;
+  --y26: #90b8d8;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: 'Noto Sans TC', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding-bottom: 100px;
+  padding-bottom: calc(100px + env(safe-area-inset-bottom));
+}
+
+/* ── Header ── */
+.header {
+  background: linear-gradient(135deg, #1b4f6a 0%, #2e7d9e 60%, #3a9abf 100%);
+  padding: 52px 20px 24px;
+  padding-top: max(52px, calc(env(safe-area-inset-top) + 16px));
+  position: relative; overflow: hidden;
+}
+.header::before { content:''; position:absolute; width:220px; height:220px; border-radius:50%; background:rgba(255,255,255,0.06); top:-60px; right:-50px; }
+.header::after  { content:''; position:absolute; width:140px; height:140px; border-radius:50%; background:rgba(255,255,255,0.04); bottom:-30px; left:20px; }
+.header h1 { font-size:22px; font-weight:700; color:#fff; letter-spacing:0.04em; }
+.header p  { font-size:13px; color:rgba(255,255,255,0.65); margin-top:4px; }
+
+/* ── Pills ── */
+.summary { display:flex; gap:10px; padding:16px 16px 0; overflow-x:auto; scrollbar-width:none; }
+.summary::-webkit-scrollbar { display:none; }
+.pill { background:var(--card); border-radius:14px; padding:12px 16px; min-width:110px; flex-shrink:0; box-shadow:0 2px 8px rgba(0,0,0,0.07); }
+.pill-label { font-size:10px; color:var(--sub); letter-spacing:0.05em; text-transform:uppercase; }
+.pill-value { font-size:22px; font-weight:700; color:var(--accent); margin-top:2px; font-family:'DM Mono',monospace; }
+.pill-unit  { font-size:10px; color:var(--sub); margin-top:1px; }
+
+/* ── Section ── */
+.section { padding:16px 16px 0; }
+.section-title { font-size:12px; font-weight:700; color:var(--sub); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:10px; }
+
+/* ── Chart ── */
+.chart-card { background:var(--card); border-radius:var(--radius); padding:16px 12px; box-shadow:0 2px 10px rgba(0,0,0,0.07); margin-bottom:4px; }
+.chart-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.chart-title  { font-size:14px; font-weight:700; }
+.legend { display:flex; gap:12px; font-size:10px; color:var(--sub); }
+.legend-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+
+/* ── Tab bar ── */
+.tab-bar { display:flex; background:var(--card); border-radius:10px; padding:3px; margin:16px 16px 12px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+.tab { flex:1; text-align:center; padding:8px 4px; font-size:12px; font-weight:500; color:var(--sub); border-radius:8px; cursor:pointer; transition:all .2s; }
+.tab.active { background:var(--accent); color:#fff; box-shadow:0 2px 6px rgba(46,125,158,.35); }
+
+/* ── Table ── */
+.table-wrap { background:var(--card); border-radius:var(--radius); overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.07); margin:0 16px 20px; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+thead th { background:#1b4f6a; color:#fff; padding:10px 8px; text-align:right; font-size:11px; font-weight:600; letter-spacing:0.04em; }
+thead th:first-child { text-align:left; padding-left:14px; }
+thead th.th-edit { width:36px; }
+tbody tr { border-bottom:1px solid rgba(0,0,0,0.04); transition:background .15s; }
+tbody tr:last-child { border-bottom:none; }
+tbody tr:active { background:#f5f7fa; }
+tbody td { padding:9px 8px; text-align:right; font-family:'DM Mono',monospace; font-size:13px; }
+tbody td:first-child { text-align:left; padding-left:14px; font-family:'Noto Sans TC',sans-serif; font-weight:500; font-size:12px; }
+.row-y22 td:first-child { border-left:3px solid var(--y22); }
+.row-y23 td:first-child { border-left:3px solid var(--y23); }
+.row-y24 td:first-child { border-left:3px solid var(--y24); }
+.row-y25 td:first-child { border-left:3px solid var(--y25); }
+.row-y26 td:first-child { border-left:3px solid var(--y26); }
+.row-y27 td:first-child { border-left:3px solid #c9a9d8; }
+.year-group td { background:#f5f7fa; font-size:10px; font-weight:700; letter-spacing:.1em; color:var(--sub); padding:5px 14px; text-align:left; font-family:'Noto Sans TC',sans-serif; }
+.triangle { color:#e05252; font-size:10px; }
+.btn-edit { background:none; border:none; font-size:16px; cursor:pointer; padding:2px 6px; border-radius:6px; transition:background .15s; }
+.btn-edit:active { background:#e8f0f6; }
+
+/* ── FAB Add button ── */
+.fab {
+  position:fixed;
+  right:20px;
+  bottom:calc(20px + env(safe-area-inset-bottom));
+  width:58px; height:58px;
+  background:linear-gradient(135deg, #2e7d9e, #1b4f6a);
+  border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:26px; color:#fff;
+  box-shadow:0 4px 16px rgba(46,125,158,0.45);
+  cursor:pointer;
+  transition:transform .15s, box-shadow .15s;
+  z-index:100;
+  border:none;
+}
+.fab:active { transform:scale(0.93); box-shadow:0 2px 8px rgba(46,125,158,0.35); }
+
+/* ── Modal ── */
+.modal-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.45);
+  z-index:200;
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+  align-items:flex-end; justify-content:center;
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background:var(--card);
+  border-radius:24px 24px 0 0;
+  padding:24px 20px;
+  padding-bottom:calc(24px + env(safe-area-inset-bottom));
+  width:100%;
+  max-width:480px;
+  animation:slideUp .25s ease;
+}
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.modal-title { font-size:17px; font-weight:700; margin-bottom:4px; }
+.modal-sub   { font-size:12px; color:var(--sub); margin-bottom:20px; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px; }
+.form-field { display:flex; flex-direction:column; gap:6px; }
+.form-field.full { grid-column:1/-1; }
+.form-field label { font-size:11px; font-weight:600; color:var(--sub); letter-spacing:.05em; text-transform:uppercase; }
+.form-field input, .form-field select {
+  background:#f5f7fa; border:1.5px solid #e0e6ed; border-radius:10px;
+  padding:11px 12px; font-size:15px; font-family:'DM Mono',monospace;
+  color:var(--text); outline:none; transition:border-color .2s;
+  -webkit-appearance:none;
+}
+.form-field input:focus, .form-field select:focus { border-color:var(--accent); background:#fff; }
+.form-actions { display:flex; gap:10px; }
+.btn { flex:1; padding:14px; border-radius:12px; border:none; font-size:15px; font-family:'Noto Sans TC',sans-serif; font-weight:600; cursor:pointer; transition:all .15s; }
+.btn-primary  { background:var(--accent); color:#fff; }
+.btn-primary:active { background:#236485; }
+.btn-secondary { background:#f0f4f8; color:var(--sub); }
+.btn-secondary:active { background:#e0e6ed; }
+.btn-danger { background:#fef0f0; color:var(--danger); }
+.btn-danger:active { background:#fde0e0; }
+.drag-bar { width:40px; height:4px; background:#e0e6ed; border-radius:2px; margin:0 auto 16px; }
+
+/* ── Toast ── */
+.toast {
+  position:fixed; top:calc(16px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%) translateY(-80px);
+  background:#1a2535; color:#fff; border-radius:100px;
+  padding:10px 20px; font-size:13px; font-weight:500;
+  z-index:300; transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+  white-space:nowrap; pointer-events:none;
+}
+.toast.show { transform:translateX(-50%) translateY(0); }
+
+/* ── Export hint ── */
+.export-bar { margin:0 16px 12px; display:flex; gap:8px; }
+.export-btn { flex:1; background:var(--card); border:none; border-radius:10px; padding:10px; font-size:12px; color:var(--sub); font-family:'Noto Sans TC',sans-serif; cursor:pointer; box-shadow:0 1px 6px rgba(0,0,0,0.06); display:flex; align-items:center; justify-content:center; gap:6px; }
+.export-btn:active { background:#e8f0f6; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🏥 門診人次紀錄</h1>
+  <p id="headerSub">載入中...</p>
+</div>
+
+<div class="summary" id="summaryPills"></div>
+
+<div class="section">
+  <div class="section-title">趨勢圖表</div>
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">每月人次</span>
+      <div class="legend">
+        <span><span class="legend-dot" style="background:#2e7d9e"></span>人次</span>
+        <span><span class="legend-dot" style="background:#e8704a"></span>平均人次</span>
+      </div>
+    </div>
+    <canvas id="mainChart" height="200"></canvas>
+  </div>
+</div>
+
+<div class="tab-bar" id="tabBar"></div>
+
+<div class="export-bar">
+  <button class="export-btn" onclick="exportCSV()">📥 匯出 CSV</button>
+  <button class="export-btn" onclick="showBackup()">💾 備份資料</button>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>月份</th>
+        <th>人次</th>
+        <th>門診數</th>
+        <th>平均</th>
+        <th class="th-edit"></th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<!-- FAB -->
+<button class="fab" onclick="openModal()" title="新增月份">＋</button>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="handleOverlayClick(event)">
+  <div class="modal" id="modal">
+    <div class="drag-bar"></div>
+    <div class="modal-title" id="modalTitle">新增月份</div>
+    <div class="modal-sub" id="modalSub">請填入門診資料</div>
+    <div class="form-grid">
+      <div class="form-field full">
+        <label>月份</label>
+        <input type="text" id="fMonth" placeholder="例：5月-26" autocomplete="off" inputmode="text">
+      </div>
+      <div class="form-field">
+        <label>人次</label>
+        <input type="number" id="fVisits" placeholder="0" inputmode="decimal">
+      </div>
+      <div class="form-field">
+        <label>門診數</label>
+        <input type="number" id="fDays" placeholder="0" inputmode="decimal">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn btn-danger" id="btnDelete" onclick="deleteEntry()" style="display:none">刪除</button>
+      <button class="btn btn-primary" id="btnSave" onclick="saveEntry()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Default data ──
+const DEFAULT_DATA = [
+  {m:"11月-22",v:158,d:15},{m:"12月-22",v:119,d:12},
+  {m:"1月-23",v:119,d:12},{m:"2月-23",v:186,d:13},{m:"3月-23",v:272,d:19},
+  {m:"4月-23",v:169,d:13},{m:"5月-23",v:284,d:19},{m:"6月-23",v:206,d:16},
+  {m:"7月-23",v:234,d:17},{m:"8月-23",v:310,d:19},{m:"9月-23",v:254,d:16},
+  {m:"10月-23",v:347,d:17},{m:"11月-23",v:292,d:17},{m:"12月-23",v:285,d:16},
+  {m:"1月-24",v:333,d:19},{m:"2月-24",v:250,d:11},{m:"3月-24",v:274,d:16},
+  {m:"4月-24",v:382,d:19},{m:"5月-24",v:321,d:17},{m:"6月-24",v:286,d:15},
+  {m:"7月-24",v:429,d:19},{m:"8月-24",v:337,d:16},{m:"9月-24",v:359,d:15},
+  {m:"10月-24",v:377,d:17},{m:"11月-24",v:292,d:16},{m:"12月-24",v:381,d:19},
+  {m:"1月-25",v:281,d:13},{m:"2月-25",v:310,d:16},{m:"3月-25",v:338,d:16},
+  {m:"4月-25",v:377,d:19},{m:"5月-25",v:341,d:16},{m:"6月-25",v:383,d:17},
+  {m:"7月-25",v:405,d:19},{m:"8月-25",v:382,d:16},{m:"9月-25",v:428,d:18},
+  {m:"10月-25",v:416,d:18},{m:"11月-25",v:376,d:16},{m:"12月-25",v:431,d:20},
+  {m:"1月-26",v:342,d:16},{m:"2月-26",v:302,d:11},{m:"3月-26",v:423,d:19},
+  {m:"4月-26",v:369,d:16},
+  {m:"5月-26",v:null,d:null},{m:"6月-26",v:null,d:null},{m:"7月-26",v:null,d:null},
+  {m:"8月-26",v:null,d:null},{m:"9月-26",v:null,d:null},{m:"10月-26",v:null,d:null},
+  {m:"11月-26",v:null,d:null},{m:"12月-26",v:null,d:null},
+];
+
+// ── State ──
+let data = [];
+let editIndex = null;
+let chartInstance = null;
+let activeYear = 'all';
+
+// ── LocalStorage ──
+const STORAGE_KEY = 'clinic_data_v1';
+
+function loadData() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      data = JSON.parse(saved);
+    } else {
+      data = JSON.parse(JSON.stringify(DEFAULT_DATA));
+      saveData();
+    }
+  } catch(e) {
+    data = JSON.parse(JSON.stringify(DEFAULT_DATA));
+  }
+}
+
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+// ── Helpers ──
+function getYear(m) {
+  const match = m.match(/-(\d{2})$/);
+  return match ? match[1] : '??';
+}
+
+function calcAvg(v, d) {
+  if (v == null || d == null || d === 0) return null;
+  return Math.round((v / d) * 100) / 100;
+}
+
+function yearColor(y) {
+  const colors = { '22':'#b0bec5','23':'#90a4ae','24':'#e8c97a','25':'#8fbc8f','26':'#90b8d8' };
+  return colors[y] || '#c9a9d8';
+}
+
+// ── Summary Pills ──
+function buildPills() {
+  const filled = data.filter(r => r.v !== null);
+  if (!filled.length) return;
+  const maxV = filled.reduce((a,b) => b.v > a.v ? b : a);
+  const maxA = filled.reduce((a,b) => calcAvg(b.v,b.d) > calcAvg(a.v,a.d) ? b : a);
+  const last  = filled[filled.length - 1];
+  document.getElementById('summaryPills').innerHTML = `
+    <div class="pill"><div class="pill-label">最高人次</div><div class="pill-value">${maxV.v}</div><div class="pill-unit">${maxV.m}</div></div>
+    <div class="pill"><div class="pill-label">最高平均</div><div class="pill-value">${calcAvg(maxA.v,maxA.d).toFixed(2)}</div><div class="pill-unit">${maxA.m}</div></div>
+    <div class="pill"><div class="pill-label">最新人次</div><div class="pill-value">${last.v}</div><div class="pill-unit">${last.m}</div></div>
+    <div class="pill"><div class="pill-label">最新平均</div><div class="pill-value">${calcAvg(last.v,last.d).toFixed(2)}</div><div class="pill-unit">${last.m}</div></div>
+  `;
+  // header subtitle
+  const years = [...new Set(data.map(r => getYear(r.m)))];
+  const firstM = data[0].m;
+  const lastM  = data[data.length-1].m;
+  document.getElementById('headerSub').textContent = `${firstM} — ${lastM}  ・  共 ${data.length} 筆`;
+}
+
+// ── Tabs ──
+function buildTabs() {
+  const years = [...new Set(data.map(r => getYear(r.m)))];
+  const bar = document.getElementById('tabBar');
+  bar.innerHTML = '';
+  const all = document.createElement('div');
+  all.className = 'tab' + (activeYear === 'all' ? ' active' : '');
+  all.textContent = '全部';
+  all.onclick = () => setYear('all', all);
+  bar.appendChild(all);
+  years.forEach(y => {
+    const t = document.createElement('div');
+    t.className = 'tab' + (activeYear === y ? ' active' : '');
+    t.textContent = '20' + y;
+    t.onclick = () => setYear(y, t);
+    bar.appendChild(t);
+  });
+}
+
+function setYear(y, el) {
+  activeYear = y;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  buildTable();
+}
+
+// ── Table ──
+function buildTable() {
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  let lastY = null;
+  const yearLabels = {};
+  data.forEach(r => { yearLabels[getYear(r.m)] = '20' + getYear(r.m) + ' 年'; });
+
+  data.forEach((r, idx) => {
+    const y = getYear(r.m);
+    if (activeYear !== 'all' && y !== activeYear) return;
+    if (y !== lastY) {
+      const gr = document.createElement('tr');
+      gr.className = 'year-group';
+      gr.innerHTML = `<td colspan="5">${yearLabels[y]}</td>`;
+      tbody.appendChild(gr);
+      lastY = y;
+    }
+    const avg = calcAvg(r.v, r.d);
+    const tr = document.createElement('tr');
+    tr.className = `row-y${y}`;
+    tr.innerHTML = `
+      <td>${r.m}</td>
+      <td>${r.v !== null ? r.v : '<span class="triangle">▲</span>'}</td>
+      <td>${r.d !== null ? r.d : '<span class="triangle">▲</span>'}</td>
+      <td>${avg !== null ? avg.toFixed(2) : '<span class="triangle">▲</span>'}</td>
+      <td><button class="btn-edit" onclick="openEdit(${idx})" aria-label="編輯">✏️</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Chart ──
+function buildChart() {
+  const filled = data.filter(r => r.v !== null);
+  const labels  = filled.map(r => r.m.replace(/-(\d{2})$/, "/'$1"));
+  const visits  = filled.map(r => r.v);
+  const avgs    = filled.map(r => calcAvg(r.v, r.d));
+
+  if (chartInstance) chartInstance.destroy();
+  const ctx = document.getElementById('mainChart').getContext('2d');
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label:'人次', data:visits,
+          borderColor:'#2e7d9e', backgroundColor:'rgba(46,125,158,0.08)',
+          borderWidth:2, pointRadius:2, tension:0.35, fill:true, yAxisID:'y' },
+        { label:'平均人次', data:avgs,
+          borderColor:'#e8704a', backgroundColor:'transparent',
+          borderWidth:2, pointRadius:2, tension:0.35, fill:false,
+          borderDash:[4,3], yAxisID:'y2' }
+      ]
+    },
+    options: {
+      responsive:true,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{
+          backgroundColor:'#1a2535',
+          titleFont:{ family:'Noto Sans TC', size:11 },
+          bodyFont:{ family:'DM Mono', size:12 },
+          padding:10, cornerRadius:8
+        }
+      },
+      scales:{
+        x:{ ticks:{ maxTicksLimit:10, font:{size:9,family:'Noto Sans TC'}, color:'#6b7c93', maxRotation:0 }, grid:{display:false}, border:{display:false} },
+        y:{ position:'left', ticks:{font:{size:10,family:'DM Mono'},color:'#2e7d9e',maxTicksLimit:5}, grid:{color:'rgba(0,0,0,0.05)'}, border:{display:false}, title:{display:true,text:'人次',color:'#2e7d9e',font:{size:10}} },
+        y2:{ position:'right', ticks:{font:{size:10,family:'DM Mono'},color:'#e8704a',maxTicksLimit:5}, grid:{display:false}, border:{display:false}, title:{display:true,text:'平均',color:'#e8704a',font:{size:10}} }
+      }
+    }
+  });
+}
+
+// ── Modal ──
+function openModal() {
+  editIndex = null;
+  document.getElementById('modalTitle').textContent = '新增月份';
+  document.getElementById('modalSub').textContent = '請填入門診資料';
+  document.getElementById('fMonth').value = '';
+  document.getElementById('fVisits').value = '';
+  document.getElementById('fDays').value = '';
+  document.getElementById('fMonth').disabled = false;
+  document.getElementById('btnDelete').style.display = 'none';
+  document.getElementById('modalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('fMonth').focus(), 300);
+}
+
+function openEdit(idx) {
+  editIndex = idx;
+  const r = data[idx];
+  document.getElementById('modalTitle').textContent = '編輯資料';
+  document.getElementById('modalSub').textContent = r.m;
+  document.getElementById('fMonth').value = r.m;
+  document.getElementById('fVisits').value = r.v !== null ? r.v : '';
+  document.getElementById('fDays').value = r.d !== null ? r.d : '';
+  document.getElementById('fMonth').disabled = true;
+  document.getElementById('btnDelete').style.display = 'flex';
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+}
+
+function saveEntry() {
+  const m  = document.getElementById('fMonth').value.trim();
+  const vStr = document.getElementById('fVisits').value.trim();
+  const dStr = document.getElementById('fDays').value.trim();
+  const v  = vStr === '' ? null : parseInt(vStr);
+  const d  = dStr === '' ? null : parseInt(dStr);
+
+  if (!m) { showToast('❗ 請輸入月份'); return; }
+
+  if (editIndex !== null) {
+    data[editIndex].v = v;
+    data[editIndex].d = d;
+    showToast('✅ 已更新 ' + m);
+  } else {
+    if (data.find(r => r.m === m)) { showToast('⚠️ 該月份已存在'); return; }
+    data.push({ m, v, d });
+    showToast('✅ 已新增 ' + m);
+  }
+  saveData();
+  closeModal();
+  refresh();
+}
+
+function deleteEntry() {
+  if (editIndex === null) return;
+  const m = data[editIndex].m;
+  if (!confirm(`確定要刪除「${m}」的資料嗎？`)) return;
+  data.splice(editIndex, 1);
+  saveData();
+  closeModal();
+  refresh();
+  showToast('🗑 已刪除 ' + m);
+}
+
+// ── Export ──
+function exportCSV() {
+  const rows = [['月份','人次','門診數','平均人次']];
+  data.forEach(r => {
+    const avg = calcAvg(r.v, r.d);
+    rows.push([r.m, r.v ?? '', r.d ?? '', avg !== null ? avg.toFixed(2) : '']);
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type:'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = '門診人次.csv'; a.click();
+  URL.revokeObjectURL(url);
+  showToast('📥 CSV 已下載');
+}
+
+function showBackup() {
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type:'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'clinic_backup.json'; a.click();
+  URL.revokeObjectURL(url);
+  showToast('💾 備份已下載');
+}
+
+// ── Toast ──
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ── Keyboard enter ──
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('modalOverlay').classList.contains('open')) saveEntry();
+  if (e.key === 'Escape') closeModal();
+});
+
+// ── Refresh all ──
+function refresh() {
+  buildPills();
+  buildTabs();
+  buildTable();
+  buildChart();
+}
+
+// ── Init ──
+loadData();
+refresh();
+</script>
+</body>
+</html>
