@@ -311,7 +311,7 @@ let activeYear = 'all';
 let chartMode = 'both'; // 'both' | 'visits' | 'avg'
 
 // ── LocalStorage ──
-const STORAGE_KEY = 'clinic_data_v1';
+const STORAGE_KEY = location.hostname === 'wshung000-pixel.github.io' ? 'clinic_data_v1' : 'clinic_data_v2_preview';
 
 function loadData() {
   try {
