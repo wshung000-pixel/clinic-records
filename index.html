@@ -210,6 +210,7 @@ button:focus-visible,input:focus-visible{outline:3px solid #8ac6f0;outline-offse
 .fab[hidden]{display:none!important}
 @media(min-width:900px){.page-track{max-width:1000px;margin:auto}.page-nav{max-width:1000px;margin:auto}}
 .record-order-note{font-size:12px;color:var(--sub);padding:12px 16px 0;line-height:1.5}
+.records-toolbar{display:flex;gap:9px;align-items:center;padding:14px 16px 6px}.records-toolbar label{font-size:12px;color:var(--sub);white-space:nowrap}.records-toolbar select{min-width:0;flex:1;border:1px solid #dce5ef;border-radius:12px;background:#fff;padding:12px;font:600 14px 'Noto Sans TC',sans-serif}.records-add{border:0;border-radius:12px;background:#27679c;color:white;padding:12px;font:700 13px 'Noto Sans TC',sans-serif}.records-hint{color:var(--sub);font-size:12px;padding:8px 16px}.record-cards{display:grid;gap:10px;padding:8px 16px}.record-card{width:100%;border:1px solid #e1e9f2;background:#fff;border-radius:16px;display:flex;align-items:center;text-align:left;padding:14px 12px;gap:12px;box-shadow:0 2px 10px #24344a0d;color:var(--text);font-family:'Noto Sans TC',sans-serif}.record-month{background:#eef5fb;color:#275e87;padding:12px 8px;border-radius:12px;font-size:16px;font-weight:800;min-width:58px;text-align:center}.record-card-body{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}.record-card-body strong{font-size:17px}.record-card-body span{font-size:11px;color:var(--sub)}.record-edit{font-size:12px;color:var(--accent);white-space:nowrap}.records-more{display:block;margin:10px 16px;width:calc(100% - 32px);border:1px solid #dce7f0;background:#fff;color:var(--accent);border-radius:12px;padding:13px;font:700 13px 'Noto Sans TC',sans-serif}.records-more[hidden]{display:none}.records-tools{margin:16px;border-top:1px solid #e3eaf1;padding-top:14px}.records-tools summary{color:var(--sub);font-size:12px;cursor:pointer}.records-tools .export-bar{margin:12px 0;flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -236,29 +237,16 @@ button:focus-visible,input:focus-visible{outline:3px solid #8ac6f0;outline-offse
   </div>
 </div></section><section class="page-pane" aria-label="月度紀錄">
 
-<p class="record-order-note">已填寫月份優先顯示，依時間由新到舊排序；尚未填寫的月份列在後面。</p>
-<div class="tab-bar" id="tabBar"></div>
-
-<div class="export-bar">
-  <button class="export-btn" onclick="exportCSV()">📥 匯出 CSV</button>
-  <button class="export-btn" onclick="showBackup()">💾 備份 JSON</button><button class="export-btn" onclick="document.getElementById('restoreFile').click()">↩️ 還原 JSON</button><input id="restoreFile" type="file" accept=".json,application/json" hidden onchange="restoreBackup(event)">
-</div>
-
-<div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th>月份</th>
-        <th>人次</th>
-        <th>門診數</th>
-        <th>平均</th>
-        <th class="th-edit"></th>
-      </tr>
-    </thead>
-    <tbody id="tableBody"></tbody>
-  </table>
-</div>
-
+<div class="records-toolbar"><label for="recordYear">選擇年份</label><select id="recordYear" onchange="setRecordYear(this.value)"></select><button type="button" class="records-add" onclick="openModal()">＋ 新增</button></div>
+<p class="records-hint">點選月份即可輸入或修改人次與門診數</p>
+<div id="recordCards" class="record-cards"></div>
+<button type="button" id="moreRecords" class="records-more" onclick="toggleMoreRecords()" hidden>查看較早月份</button>
+<details class="records-tools"><summary>資料備份與匯出</summary><div class="export-bar">
+<button class="export-btn" onclick="exportCSV()">匯出 CSV</button>
+<button class="export-btn" onclick="showBackup()">備份 JSON</button>
+<button class="export-btn" onclick="document.getElementById('restoreFile').click()">還原 JSON</button>
+<input id="restoreFile" type="file" accept=".json,application/json" hidden onchange="restoreBackup(event)">
+</div></details>
 </section></div>
 <!-- FAB -->
 <button class="fab" onclick="openModal()" title="新增月份">＋</button>
@@ -403,72 +391,45 @@ function buildPills() {
 }
 
 // ── Tabs ──
-function buildTabs() {
-  const years = [...new Set(data.map(r => getYear(r.m)))];
-  const bar = document.getElementById('tabBar');
-  bar.innerHTML = '';
-  const all = document.createElement('div');
-  all.className = 'tab' + (activeYear === 'all' ? ' active' : '');
-  all.textContent = '全部';
-  all.onclick = () => setYear('all', all);
-  bar.appendChild(all);
-  years.forEach(y => {
-    const t = document.createElement('div');
-    t.className = 'tab' + (activeYear === y ? ' active' : '');
-    t.textContent = '20' + y;
-    t.onclick = () => setYear(y, t);
-    bar.appendChild(t);
-  });
-}
-
-function setYear(y, el) {
-  activeYear = y;
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  buildTable();
-}
-
-// ── Table ──
+// Compact record cards, with original array index retained for editing.
+let recordYear = String(new Date().getFullYear());
+let expandedRecords = false;
+function buildTabs() { buildTable(); }
+function setRecordYear(year) { recordYear=year; expandedRecords=false; buildTable(); }
+function toggleMoreRecords() { expandedRecords=!expandedRecords; buildTable(); }
 function buildTable() {
-  const tbody = document.getElementById('tableBody');
-  tbody.innerHTML = '';
-  let lastY = null;
-  const yearLabels = {};
-  data.forEach(r => { yearLabels[getYear(r.m)] = '20' + getYear(r.m) + ' 年'; });
-
-  // Show recorded months first, newest to oldest. Empty future placeholders follow.
-  // Keep the original array indices so editing always targets the correct record.
-  const ordered = data.map((r, idx) => ({r, idx})).sort((a,b) => {
-    const aFilled = a.r.v !== null && a.r.d !== null;
-    const bFilled = b.r.v !== null && b.r.d !== null;
-    if (aFilled !== bFilled) return aFilled ? -1 : 1;
-    const am = parseMonth(a.r.m), bm = parseMonth(b.r.m);
-    return (bm?.year || 0) - (am?.year || 0) || (bm?.month || 0) - (am?.month || 0);
+  const years=[...new Set(data.map(r=>parseMonth(r.m)?.year).filter(Boolean))].sort((a,b)=>b-a);
+  const now=new Date(), currentYear=now.getFullYear();
+  if(!years.includes(Number(recordYear))) recordYear=String(years.includes(currentYear)?currentYear:years[0]||currentYear);
+  const picker=document.getElementById('recordYear');
+  picker.innerHTML=years.map(y=>'<option value="'+y+'">'+y+' 年</option>').join('');
+  picker.value=recordYear;
+  const all=data.map((r,idx)=>({r,idx,parsed:parseMonth(r.m)}))
+    .filter(x=>x.parsed?.year===Number(recordYear))
+    .sort((a,b)=>b.parsed.month-a.parsed.month);
+  const latestYear=Number(recordYear)===currentYear;
+  // Show current calendar month first, not future months when recording this year.
+  const eligible=latestYear?all.filter(x=>x.parsed.month<=now.getMonth()+1):all;
+  const visible=expandedRecords?eligible:eligible.slice(0,3);
+  const host=document.getElementById('recordCards');
+  host.replaceChildren();
+  visible.forEach(({r,idx,parsed})=>{
+    const avg=calcAvg(r.v,r.d),filled=r.v!==null&&r.d!==null;
+    const button=document.createElement('button');
+    button.type='button';button.className='record-card';button.onclick=()=>openEdit(idx);
+    const month=document.createElement('div');month.className='record-month';month.textContent=parsed.month+'月';
+    const body=document.createElement('div');body.className='record-card-body';
+    const headline=document.createElement('strong');headline.textContent=filled?r.v.toLocaleString('zh-TW')+' 人次':'尚未紀錄';
+    const detail=document.createElement('span');detail.textContent=filled?r.d+' 診 · 平均 '+(avg===null?'—':avg.toFixed(1))+' 人／診':'點擊輸入本月資料';
+    body.append(headline,detail);
+    const edit=document.createElement('span');edit.className='record-edit';edit.textContent=filled?'編輯 ›':'填寫 ›';
+    button.append(month,body,edit);host.append(button);
   });
-  ordered.forEach(({r, idx}) => {
-    const y = getYear(r.m);
-    if (activeYear !== 'all' && y !== activeYear) return;
-    if (y !== lastY) {
-      const gr = document.createElement('tr');
-      gr.className = 'year-group';
-      gr.innerHTML = `<td colspan="5">${yearLabels[y]}</td>`;
-      tbody.appendChild(gr);
-      lastY = y;
-    }
-    const avg = calcAvg(r.v, r.d);
-    const tr = document.createElement('tr');
-    tr.className = `row-y${y}`;
-    tr.innerHTML = `
-      <td>${r.m}</td>
-      <td>${r.v !== null ? r.v : '<span class="triangle">▲</span>'}</td>
-      <td>${r.d !== null ? r.d : '<span class="triangle">▲</span>'}</td>
-      <td>${avg !== null ? avg.toFixed(2) : '<span class="triangle">▲</span>'}</td>
-      <td><button class="btn-edit" onclick="openEdit(${idx})" aria-label="編輯">✏️</button></td>
-    `;
-    tbody.appendChild(tr);
-  });
+  if(!visible.length){const empty=document.createElement('p');empty.className='records-hint';empty.textContent='這個年份目前沒有可顯示的月份，請點選新增。';host.append(empty);}
+  const more=document.getElementById('moreRecords');
+  more.hidden=eligible.length<=3;
+  more.textContent=expandedRecords?'收起較早月份':'查看較早月份（'+Math.max(0,eligible.length-3)+'）';
 }
-
 // ── Chart ──
 function buildChart() {
   const filled = data.filter(r => r.v !== null);
