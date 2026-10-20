@@ -567,7 +567,12 @@ function saveEntry() {
     data.push({ m, v, d });
     showToast('✅ 已新增 ' + m);
   }
-  saveData();
+  data.sort((a,b)=>{
+    const da=parseMonth(a.m),db=parseMonth(b.m);
+    return (da?.year||0)-(db?.year||0) || (da?.month||0)-(db?.month||0);
+  });
+  try { saveData(); }
+  catch(e) { showToast('⚠️ 儲存失敗，請確認瀏覽器儲存空間'); return; }
   closeModal();
   refresh();
 }
@@ -624,6 +629,10 @@ async function restoreBackup(event){
       return {m:r.m,v:r.v,d:r.d};
     });
     if(!confirm('將以 '+restored.length+' 筆備份覆蓋目前 '+data.length+' 筆資料。建議先下載現有備份。確定還原？'))return;
+    restored.sort((a,b)=>{
+      const da=parseMonth(a.m),db=parseMonth(b.m);
+      return da.year-db.year || da.month-db.month;
+    });
     localStorage.setItem(STORAGE_KEY,JSON.stringify(restored));
     data=restored;activeYear='all';refresh();showToast('✅ 還原成功');
   }catch(e){alert('還原失敗：'+e.message);}
