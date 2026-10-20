@@ -209,6 +209,7 @@ button:focus-visible,input:focus-visible{outline:3px solid #8ac6f0;outline-offse
 .page-pane .v2-panel{margin-bottom:20px}
 .fab[hidden]{display:none!important}
 @media(min-width:900px){.page-track{max-width:1000px;margin:auto}.page-nav{max-width:1000px;margin:auto}}
+.record-order-note{font-size:12px;color:var(--sub);padding:12px 16px 0;line-height:1.5}
 </style>
 </head>
 <body>
@@ -235,6 +236,7 @@ button:focus-visible,input:focus-visible{outline:3px solid #8ac6f0;outline-offse
   </div>
 </div></section><section class="page-pane" aria-label="月度紀錄">
 
+<p class="record-order-note">已填寫月份優先顯示，依時間由新到舊排序；尚未填寫的月份列在後面。</p>
 <div class="tab-bar" id="tabBar"></div>
 
 <div class="export-bar">
@@ -434,7 +436,16 @@ function buildTable() {
   const yearLabels = {};
   data.forEach(r => { yearLabels[getYear(r.m)] = '20' + getYear(r.m) + ' 年'; });
 
-  data.forEach((r, idx) => {
+  // Show recorded months first, newest to oldest. Empty future placeholders follow.
+  // Keep the original array indices so editing always targets the correct record.
+  const ordered = data.map((r, idx) => ({r, idx})).sort((a,b) => {
+    const aFilled = a.r.v !== null && a.r.d !== null;
+    const bFilled = b.r.v !== null && b.r.d !== null;
+    if (aFilled !== bFilled) return aFilled ? -1 : 1;
+    const am = parseMonth(a.r.m), bm = parseMonth(b.r.m);
+    return (bm?.year || 0) - (am?.year || 0) || (bm?.month || 0) - (am?.month || 0);
+  });
+  ordered.forEach(({r, idx}) => {
     const y = getYear(r.m);
     if (activeYear !== 'all' && y !== activeYear) return;
     if (y !== lastY) {
