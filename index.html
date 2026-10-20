@@ -183,16 +183,31 @@ tbody td:first-child { text-align:left; padding-left:14px; font-family:'Noto San
 .export-bar { margin:0 16px 12px; display:flex; gap:8px; }
 .export-btn { flex:1; background:var(--card); border:none; border-radius:10px; padding:10px; font-size:12px; color:var(--sub); font-family:'Noto Sans TC',sans-serif; cursor:pointer; box-shadow:0 1px 6px rgba(0,0,0,0.06); display:flex; align-items:center; justify-content:center; gap:6px; }
 .export-btn:active { background:#e8f0f6; }
+/* V2 dashboard */
+:root{--bg:#f4f7fb;--accent:#27679c;--radius:18px;}
+.header{background:linear-gradient(120deg,#163b63,#287daa);color:white;border-radius:0 0 24px 24px;}
+.header p{color:rgba(255,255,255,.8)}
+.v2-panel{background:#fff;margin:14px;padding:18px;border-radius:18px;box-shadow:0 5px 20px #1d39600d}
+.v2-panel h2{font-size:16px;margin-bottom:12px}
+.v2-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.v2-year{background:#f7faff;border:1px solid #e0eaf5;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:7px;min-width:0}
+.v2-year b{font-size:13px;color:#28648c}
+.v2-year strong{font-size:25px;font-variant-numeric:tabular-nums}
+.v2-year span,.v2-note{font-size:11px;color:#6b7c93}
+.v2-note{line-height:1.6;margin-top:12px}
+.export-bar{flex-wrap:wrap}
+button:focus-visible,input:focus-visible{outline:3px solid #8ac6f0;outline-offset:2px}
+@media(min-width:800px){.v2-grid{grid-template-columns:repeat(4,1fr)}.v2-panel{max-width:960px;margin-left:auto;margin-right:auto}}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>🏥 門診人次紀錄</h1>
+  <h1>門診人次統計 <small style="font-size:12px;opacity:.75">V2.0</small></h1>
   <p id="headerSub">載入中...</p>
 </div>
 
-<div class="summary" id="summaryPills"></div>
+<div class="summary" id="summaryPills"></div><section class="v2-panel"><h2>年度統計與同期比較</h2><div id="annualStats" class="v2-grid"></div><p id="yoyNote" class="v2-note"></p></section>
 
 <div class="section">
   <div class="section-title">趨勢圖表</div>
@@ -213,7 +228,7 @@ tbody td:first-child { text-align:left; padding-left:14px; font-family:'Noto San
 
 <div class="export-bar">
   <button class="export-btn" onclick="exportCSV()">📥 匯出 CSV</button>
-  <button class="export-btn" onclick="showBackup()">💾 備份資料</button>
+  <button class="export-btn" onclick="showBackup()">💾 備份 JSON</button><button class="export-btn" onclick="document.getElementById('restoreFile').click()">↩️ 還原 JSON</button><input id="restoreFile" type="file" accept=".json,application/json" hidden onchange="restoreBackup(event)">
 </div>
 
 <div class="table-wrap">
@@ -296,7 +311,7 @@ let activeYear = 'all';
 let chartMode = 'both'; // 'both' | 'visits' | 'avg'
 
 // ── LocalStorage ──
-const STORAGE_KEY = 'clinic_data_v1';
+const STORAGE_KEY = location.hostname === 'wshung000-pixel.github.io' ? 'clinic_data_v1' : 'clinic_data_v2_preview';
 
 function loadData() {
   try {
@@ -333,6 +348,27 @@ function yearColor(y) {
 }
 
 // ── Summary Pills ──
+function parseMonth(m) {
+  const z=/^([1-9]|1[0-2])月-([0-9]{2})$/.exec(m);
+  return z?{month:Number(z[1]),year:2000+Number(z[2])}:null;
+}
+function buildAnnualStats(){
+  const years=[...new Set(data.map(r=>parseMonth(r.m)?.year).filter(Boolean))].sort((a,b)=>b-a);
+  const summaries=years.map(year=>{
+    const records=data.filter(r=>parseMonth(r.m)?.year===year && Number.isFinite(r.v) && Number.isFinite(r.d) && r.d>0);
+    const visits=records.reduce((sum,r)=>sum+r.v,0);
+    const days=records.reduce((sum,r)=>sum+r.d,0);
+    return {year,records,visits,days};
+  });
+  document.getElementById('annualStats').innerHTML=summaries.map(x=>'<article class="v2-year"><b>'+x.year+' 年</b><strong>'+x.visits.toLocaleString('zh-TW')+'</strong><span>'+x.records.length+' 個月 · '+x.days+' 診 · 平均 '+(x.days?(x.visits/x.days).toFixed(1):'—')+'</span></article>').join('');
+  const latest=summaries[0],prior=summaries.find(x=>x.year===latest?.year-1);
+  const months=new Set(latest?.records.map(r=>parseMonth(r.m).month)||[]);
+  const matched=prior?.records.filter(r=>months.has(parseMonth(r.m).month))||[];
+  const baseline=matched.reduce((n,r)=>n+r.v,0);
+  document.getElementById('yoyNote').textContent=months.size>0&&matched.length===months.size&&baseline>0
+    ? latest.year+' 年同期人次較 '+prior.year+' 年 '+((latest.visits-baseline)/baseline*100>=0?'+':'')+((latest.visits-baseline)/baseline*100).toFixed(1)+'%（比較 '+months.size+' 個月）'
+    : '同期比較：尚無足夠的對應月份資料';
+}
 function buildPills() {
   const filled = data.filter(r => r.v !== null);
   if (!filled.length) return;
@@ -518,7 +554,9 @@ function saveEntry() {
   const v  = vStr === '' ? null : parseInt(vStr);
   const d  = dStr === '' ? null : parseInt(dStr);
 
-  if (!m) { showToast('❗ 請輸入月份'); return; }
+  if (!/^([1-9]|1[0-2])月-[0-9]{2}$/.test(m)) { showToast('⚠️ 月份格式例如：5月-26'); return; }
+  if ([vStr,dStr].some(x=>x!=='' && (!/^[0-9]+$/.test(x) || !Number.isSafeInteger(Number(x))))) { showToast('⚠️ 請輸入非負整數'); return; }
+  if ((v===null)!==(d===null) || (v!==null && d===0)) { showToast('⚠️ 人次及門診數須同時填寫，門診數不可為 0'); return; }
 
   if (editIndex !== null) {
     data[editIndex].v = v;
@@ -529,7 +567,12 @@ function saveEntry() {
     data.push({ m, v, d });
     showToast('✅ 已新增 ' + m);
   }
-  saveData();
+  data.sort((a,b)=>{
+    const da=parseMonth(a.m),db=parseMonth(b.m);
+    return (da?.year||0)-(db?.year||0) || (da?.month||0)-(db?.month||0);
+  });
+  try { saveData(); }
+  catch(e) { showToast('⚠️ 儲存失敗，請確認瀏覽器儲存空間'); return; }
   closeModal();
   refresh();
 }
@@ -571,6 +614,30 @@ function showBackup() {
   showToast('💾 備份已下載');
 }
 
+async function restoreBackup(event){
+  const input=event.target, file=input.files?.[0];
+  if(!file)return;
+  try {
+    if(file.size>2097152)throw Error('檔案不可超過 2MB');
+    const rows=JSON.parse(await file.text()), seen=new Set();
+    if(!Array.isArray(rows)||rows.length>1000)throw Error('備份格式不正確');
+    const restored=rows.map(r=>{
+      if(!r||typeof r.m!=='string'||!/^([1-9]|1[0-2])月-[0-9]{2}$/.test(r.m)||seen.has(r.m))throw Error('月份格式錯誤或重複');
+      seen.add(r.m);
+      if(![r.v,r.d].every(n=>n===null||(Number.isSafeInteger(n)&&n>=0)))throw Error('人次與門診數格式不正確');
+      if((r.v===null)!==(r.d===null)||(r.d===0))throw Error('人次與門診數不完整');
+      return {m:r.m,v:r.v,d:r.d};
+    });
+    if(!confirm('將以 '+restored.length+' 筆備份覆蓋目前 '+data.length+' 筆資料。建議先下載現有備份。確定還原？'))return;
+    restored.sort((a,b)=>{
+      const da=parseMonth(a.m),db=parseMonth(b.m);
+      return da.year-db.year || da.month-db.month;
+    });
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(restored));
+    data=restored;activeYear='all';refresh();showToast('✅ 還原成功');
+  }catch(e){alert('還原失敗：'+e.message);}
+  finally{input.value='';}
+}
 // ── Toast ──
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -588,6 +655,7 @@ document.addEventListener('keydown', e => {
 // ── Refresh all ──
 function refresh() {
   buildPills();
+  buildAnnualStats();
   buildTabs();
   buildTable();
   buildChart();
