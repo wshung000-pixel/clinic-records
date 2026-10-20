@@ -198,16 +198,27 @@ tbody td:first-child { text-align:left; padding-left:14px; font-family:'Noto San
 .export-bar{flex-wrap:wrap}
 button:focus-visible,input:focus-visible{outline:3px solid #8ac6f0;outline-offset:2px}
 @media(min-width:800px){.v2-grid{grid-template-columns:repeat(4,1fr)}.v2-panel{max-width:960px;margin-left:auto;margin-right:auto}}
+/* Swipeable three-page navigation */
+.page-nav{position:sticky;top:0;z-index:110;display:flex;gap:6px;padding:10px 14px;background:rgba(244,247,251,.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid #e4eaf0}
+.page-tab{flex:1;min-width:0;border:none;background:transparent;color:#63748a;font:700 13px 'Noto Sans TC',sans-serif;padding:12px 5px;border-radius:12px;cursor:pointer}
+.page-tab.active{background:#235f91;color:white;box-shadow:0 3px 9px #235f912c}
+.page-track{display:flex;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;align-items:flex-start;touch-action:pan-x pan-y}
+.page-track::-webkit-scrollbar{display:none}
+.page-pane{flex:0 0 100%;width:100%;min-width:0;scroll-snap-align:start;scroll-snap-stop:always;padding-bottom:88px;overflow:hidden}
+.page-pane .summary{margin-top:15px}
+.page-pane .v2-panel{margin-bottom:20px}
+.fab[hidden]{display:none!important}
+@media(min-width:900px){.page-track{max-width:1000px;margin:auto}.page-nav{max-width:1000px;margin:auto}}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>門診人次統計 <small style="font-size:12px;opacity:.75">V2.0</small></h1>
+  <h1>門診人次統計 <small style="font-size:12px;opacity:.75">V2.1</small></h1>
   <p id="headerSub">載入中...</p>
 </div>
 
-<div class="summary" id="summaryPills"></div><section class="v2-panel"><h2>年度統計與同期比較</h2><div id="annualStats" class="v2-grid"></div><p id="yoyNote" class="v2-note"></p></section>
+<nav class="page-nav" aria-label="切換統計分頁"><button type="button" class="page-tab active" data-page="0" aria-selected="true" onclick="goPage(0)">總覽</button><button type="button" class="page-tab" data-page="1" aria-selected="false" onclick="goPage(1)">趨勢圖</button><button type="button" class="page-tab" data-page="2" aria-selected="false" onclick="goPage(2)">月度紀錄</button></nav><div class="page-track" id="pageTrack" aria-label="左右滑動切換分頁"><section class="page-pane" aria-label="總覽"><div class="summary" id="summaryPills"></div><section class="v2-panel"><h2>年度統計與同期比較</h2><div id="annualStats" class="v2-grid"></div><p id="yoyNote" class="v2-note"></p></section></section><section class="page-pane" aria-label="趨勢圖">
 
 <div class="section">
   <div class="section-title">趨勢圖表</div>
@@ -222,7 +233,7 @@ button:focus-visible,input:focus-visible{outline:3px solid #8ac6f0;outline-offse
     </div>
     <canvas id="mainChart" height="200"></canvas>
   </div>
-</div>
+</div></section><section class="page-pane" aria-label="月度紀錄">
 
 <div class="tab-bar" id="tabBar"></div>
 
@@ -246,6 +257,7 @@ button:focus-visible,input:focus-visible{outline:3px solid #8ac6f0;outline-offse
   </table>
 </div>
 
+</section></div>
 <!-- FAB -->
 <button class="fab" onclick="openModal()" title="新增月份">＋</button>
 
@@ -661,9 +673,40 @@ function refresh() {
   buildChart();
 }
 
+// ── Swipeable pages ──
+let activePage=0;
+function updatePageNav(index) {
+  activePage=Math.min(2,Math.max(0,index));
+  document.querySelectorAll('.page-tab').forEach((button,i)=>{
+    const selected=i===activePage;
+    button.classList.toggle('active',selected);
+    button.setAttribute('aria-selected',String(selected));
+  });
+  document.querySelector('.fab').hidden=activePage!==2;
+  if(activePage===1 && chartInstance) requestAnimationFrame(()=>chartInstance.resize());
+}
+function goPage(index){
+  const track=document.getElementById('pageTrack');
+  updatePageNav(index);
+  track.scrollTo({left:index*track.clientWidth,behavior:'smooth'});
+}
+const pageTrack=document.getElementById('pageTrack');
+let settleScroll;
+pageTrack.addEventListener('scroll',()=>{
+  clearTimeout(settleScroll);
+  settleScroll=setTimeout(()=>{
+    const page=Math.round(pageTrack.scrollLeft/Math.max(1,pageTrack.clientWidth));
+    if(page!==activePage) updatePageNav(page);
+  },70);
+},{passive:true});
+window.addEventListener('resize',()=>{
+  pageTrack.scrollTo({left:activePage*pageTrack.clientWidth,behavior:'instant'});
+  if(chartInstance) chartInstance.resize();
+});
 // ── Init ──
 loadData();
 refresh();
+updatePageNav(0);
 </script>
 </body>
 </html>
